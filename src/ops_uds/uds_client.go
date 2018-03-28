@@ -22,6 +22,7 @@ type msg_hdr_t struct {
 	Data_size	uint16	`json:"size"`
 	Fn		uint8	`json:"fn"`
 	Cmd		uint8	`json:"cmd"`
+	Status		uint8	`json:"status"`
 	Crc32		uint32	`json:"crc32"`
 }
 
@@ -48,11 +49,12 @@ func ReadBytes(src io.Reader, dst interface{}) (error) {
 	return re
 }
 
-func SendAndRecvByMsg(fn uint8, cmd uint8, data_size uint16, data []byte) (uint8, uint8, uint16, []byte){
+func SendAndRecvByMsg(fn uint8, cmd uint8, data_size uint16, data []byte) (uint8, uint8, uint8, uint16, []byte){
 	req_msg := msg_t{}
 	req_msg.Hdr.Data_size = data_size
 	req_msg.Hdr.Fn = fn
 	req_msg.Hdr.Cmd = cmd
+	req_msg.Hdr.Status = 0
 	req_msg.Hdr.Crc32 = 0
 	req_msg.Data = data
 	req_buf := new(bytes.Buffer)
@@ -68,6 +70,10 @@ func SendAndRecvByMsg(fn uint8, cmd uint8, data_size uint16, data []byte) (uint8
 	if we != nil {
 		ops_log.Error(0x01, we.Error())
 	}
+	we = WriteBytes(req_buf, req_msg.Hdr.Status)
+	if we != nil {
+		ops_log.Error(0x01, we.Error())
+	}
 	we = WriteBytes(req_buf, req_msg.Hdr.Crc32)
 	if we != nil {
 		ops_log.Error(0x01, we.Error())
@@ -79,33 +85,45 @@ func SendAndRecvByMsg(fn uint8, cmd uint8, data_size uint16, data []byte) (uint8
 	req_bytes := req_buf.Bytes()
 	res_bytes := SendAndRecvByBytes(req_bytes)
 	res_buf := bytes.NewReader(res_bytes)
+	for i:=0;i<100;i++ {
+		ops_log.Debug(0x01, "%x,", res_bytes[i])
+	}
 	res_msg := msg_t{}
-	re := ReadBytes(res_buf, &res_msg.Hdr.Data_size)
+	re := ReadBytes(res_buf, &res_msg.Hdr.Data_size) // idx : 0, len : 2
 	if re != nil {
 		ops_log.Error(0x01, re.Error())
 	}
-	re = ReadBytes(res_buf, &res_msg.Hdr.Fn)
+	re = ReadBytes(res_buf, &res_msg.Hdr.Fn) // idx : 2, len : 1
 	if re != nil {
 		ops_log.Error(0x01, re.Error())
 	}
-	re = ReadBytes(res_buf, &res_msg.Hdr.Cmd)
+	re = ReadBytes(res_buf, &res_msg.Hdr.Cmd) // idx : 3, len : 1
 	if re != nil {
 		ops_log.Error(0x01, re.Error())
 	}
-	re = ReadBytes(res_buf, &res_msg.Hdr.Crc32)
+	re = ReadBytes(res_buf, &res_msg.Hdr.Status) // idx : 4, len : 1
 	if re != nil {
 		ops_log.Error(0x01, re.Error())
 	}
-	data_index := int(8) // message header size
-	ops_log.Debug(0x01, "data index = %ld, %ld\n", data_index, len(res_bytes))
-	res_msg.Data = make([]byte, res_msg.Hdr.Data_size)
+	re = ReadBytes(res_buf, &res_msg.Hdr.Crc32) // idx : 5, len : 4
+	if re != nil {
+		ops_log.Error(0x01, re.Error())
+	}
+	data_index := int(9) // message header size
+	ops_log.Debug(0x01, "data index = %d\n", data_index, len(res_bytes))
+	res_msg.Data = make([]byte, int(res_msg.Hdr.Data_size))
 
+	ops_log.Debug(0x01, "fn: %x", int(res_msg.Hdr.Fn))
+	ops_log.Debug(0x01, "cmd: %x", int(res_msg.Hdr.Cmd))
+	ops_log.Debug(0x01, "status: %x", int(res_msg.Hdr.Status))
+	ops_log.Debug(0x01, "data size: %d", int(res_msg.Hdr.Data_size))
+	ops_log.Debug(0x01, "Crc32: %d", int(res_msg.Hdr.Crc32))
 	for i:=0;i<int(res_msg.Hdr.Data_size);i++ {
 		res_msg.Data[i] = res_bytes[data_index + i]
-		ops_log.Debug(0x01, "i:%d, %x\n", i, res_msg.Data[i])
+		ops_log.Debug(0x01, "i:%x\n", int(i), byte(res_msg.Data[i]))
 	}
 
-	return res_msg.Hdr.Fn, res_msg.Hdr.Cmd, res_msg.Hdr.Data_size, res_msg.Data
+	return res_msg.Hdr.Fn, res_msg.Hdr.Cmd, res_msg.Hdr.Status, res_msg.Hdr.Data_size, res_msg.Data
 }
 
 func SendAndRecvByBytes(req_buf []byte)([]byte) {
@@ -181,7 +199,7 @@ func sendTestV1(fn, cmd uint8, data string) (test_t){
 	if req_err != nil {
 		ops_log.Error(0x01, req_err.Error())
 	}
-	_, _, res_len, res_bytes := SendAndRecvByMsg(fn, cmd, uint16(len(req_bytes)), req_bytes)
+	_, _, _, res_len, res_bytes := SendAndRecvByMsg(fn, cmd, uint16(len(req_bytes)), req_bytes)
 	json.Unmarshal(res_bytes, &res)
 	ops_log.Debug(0x01, "len:%ld, %ld\n", res_len, len(res_bytes))
 	return res
@@ -204,7 +222,7 @@ func sendTestV2(fn, cmd uint8, data string) (test_v2_t){
 	if req_err != nil {
 		ops_log.Error(0x01, req_err.Error())
 	}
-	_, _, res_len, res_bytes := SendAndRecvByMsg(fn, cmd, uint16(len(req_bytes)), req_bytes)
+	_, _, _, res_len, res_bytes := SendAndRecvByMsg(fn, cmd, uint16(len(req_bytes)), req_bytes)
 	json.Unmarshal(res_bytes, &res)
 	ops_log.Debug(0x01, "len:%ld, %ld\n", res_len, len(res_bytes))
 	return res

@@ -11,6 +11,7 @@ func Info(mask uint32, format string, a ...interface{}) {
 }
 
 func Debug(mask uint32, format string, a ...interface{}) {
+	return
 	log_str := fmt.Sprintf(format, a)
 	log, _ := syslog.Dial("", "", syslog.LOG_USER|syslog.LOG_DEBUG, "iopc_go")
 	log.Debug(log_str)

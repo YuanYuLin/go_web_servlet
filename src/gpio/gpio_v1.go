@@ -15,9 +15,10 @@ type io_gpio_v1_t struct {
     Unix_timestamp      string  `json:"unix_timestamp"`
 }
 
-var io_list_gpio []io_gpio_v1_t
+//var io_list_gpio []io_gpio_v1_t
 
 func V1_init() {
+/*
     io_list_gpio = append(io_list_gpio, io_gpio_v1_t{Io_type:"gpio", Port:0, Pin:7, Value:0, Direction:"out", Comment:"", Name:"RY2", Unix_timestamp:"0"})
     io_list_gpio = append(io_list_gpio, io_gpio_v1_t{Io_type:"gpio", Port:0, Pin:26, Value:0, Direction:"out", Comment:"", Name:"DO_Y1", Unix_timestamp:"0"})
     io_list_gpio = append(io_list_gpio, io_gpio_v1_t{Io_type:"gpio", Port:0, Pin:27, Value:0, Direction:"out", Comment:"", Name:"LED2", Unix_timestamp:"0"})
@@ -32,6 +33,7 @@ func V1_init() {
     io_list_gpio = append(io_list_gpio, io_gpio_v1_t{Io_type:"gpio", Port:2, Pin:1, Value:0, Direction:"out", Comment:"", Name:"DO_Y3", Unix_timestamp:"0"})
     io_list_gpio = append(io_list_gpio, io_gpio_v1_t{Io_type:"gpio", Port:3, Pin:19, Value:0, Direction:"out", Comment:"", Name:"RY1", Unix_timestamp:"0"})
     io_list_gpio = append(io_list_gpio, io_gpio_v1_t{Io_type:"gpio", Port:3, Pin:21, Value:0, Direction:"in", Comment:"", Name:"DI_X3", Unix_timestamp:"0"})
+*/
 }
 
 type req_get_gpio_t struct {
@@ -67,17 +69,41 @@ func V1_GetIoGpio(port int, pin int) (io_gpio_v1_t){
     if req_err != nil {
 	    ops_log.Error(0x01, req_err.Error())
     }
-    _, _, _, res_bytes := ops_uds.SendAndRecvByMsg(1, 2, uint16(len(req_bytes)), req_bytes)
-    res_err := json.Unmarshal(res_bytes, &res)
-    if res_err != nil {
-	    ops_log.Error(0x01, res_err.Error())
+    _, _, msg_status, res_len, res_bytes := ops_uds.SendAndRecvByMsg(1, 1, uint16(len(req_bytes)), req_bytes)
+    if msg_status != 0 {
+	    ops_log.Error(0x01, "message status %d", msg_status)
+    } else {
+	    ops_log.Debug(0x01, "%s", string(res_bytes))
+	    for i:=0;i<int(res_len);i++ {
+		    ops_log.Debug(0x01, "%x,", res_bytes[i])
+	    }
+	    res_err := json.Unmarshal(res_bytes, &res)
+	    if res_err != nil {
+		    ops_log.Error(0x01, res_err.Error())
+	    }
     }
 
     return res
 }
 
 func V1_GetIoListGpio() ([]io_gpio_v1_t){
-    return io_list_gpio
+    var req req_get_gpio_t
+    var res []io_gpio_v1_t
+    req.Io_type = "gpio"
+    req_bytes, req_err := json.Marshal(req)
+    if req_err != nil {
+	    ops_log.Error(0x01, req_err.Error())
+    }
+    _, _, msg_status, _, res_bytes := ops_uds.SendAndRecvByMsg(1, 3, uint16(len(req_bytes)), req_bytes)
+    if msg_status != 0 {
+	    ops_log.Error(0x01, "message status %d", msg_status)
+    } else {
+	    res_err := json.Unmarshal(res_bytes, &res)
+	    if res_err != nil {
+		    ops_log.Error(0x01, res_err.Error())
+	    }
+    }
+    return res
 }
 
 func V1_PutIoGpio(port int, pin int, gpio io_gpio_v1_t) (io_gpio_v1_t){
@@ -87,10 +113,14 @@ func V1_PutIoGpio(port int, pin int, gpio io_gpio_v1_t) (io_gpio_v1_t){
     if req_err != nil {
 	    ops_log.Error(0x01, req_err.Error())
     }
-    _, _, _, res_bytes := ops_uds.SendAndRecvByMsg(1, 3, uint16(len(req_bytes)), req_bytes)
-    res_err := json.Unmarshal(res_bytes, &res)
-    if res_err != nil {
-	    ops_log.Error(0x01, res_err.Error())
+    _, _, msg_status, _, res_bytes := ops_uds.SendAndRecvByMsg(1, 2, uint16(len(req_bytes)), req_bytes)
+    if msg_status != 0 {
+	    ops_log.Error(0x01, "message status %d", msg_status)
+    } else {
+	    res_err := json.Unmarshal(res_bytes, &res)
+	    if res_err != nil {
+		    ops_log.Error(0x01, res_err.Error())
+	    }
     }
     return res
 }
